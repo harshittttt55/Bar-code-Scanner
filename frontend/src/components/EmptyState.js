@@ -30,12 +30,17 @@ const Sub = styled.div`
   color: #334155;
 `;
 
-function EmptyState() {
+function EmptyState({ barcode }) {
   return (
     <Wrapper>
       <Icon>🔍</Icon>
-      <Title>No product found</Title>
-      <Sub>Try a different barcode number</Sub>
+      <Title>Product not found</Title>
+      <Sub>
+        {barcode
+          ? <>Barcode <span style={{ color: '#818cf8', fontFamily: 'monospace' }}>{barcode}</span> wasn't found in our catalog or AI knowledge base.</>
+          : 'Try a different barcode number'}
+      </Sub>
+      <Sub style={{ marginTop: 8 }}>Double-check the number or try scanning a different product.</Sub>
     </Wrapper>
   );
 }

@@ -130,6 +130,26 @@ const MrpBadge = styled.div`
   }
 `;
 
+const MrpLoadingBadge = styled(MrpBadge)`
+  background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(99,102,241,0.05));
+  border-color: rgba(99,102,241,0.25);
+  min-width: 80px;
+
+  .label { color: #818cf8; }
+
+  .price {
+    font-size: 0.8rem;
+    color: #818cf8;
+    font-weight: 500;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+`;
+
 const Grid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -425,7 +445,7 @@ const FIELDS = [
   { key: 'additional_info', label: 'Additional Information', icon: 'ℹ️', fullWidth: true },
 ];
 
-function ProductCard({ product, onReset }) {
+function ProductCard({ product, onReset, mrpLoading }) {
   if (!product || typeof product !== 'object') {
     return null;
   }
@@ -552,16 +572,21 @@ function ProductCard({ product, onReset }) {
             )}
           </ProductInfo>
 
-          {hasMrp && (
+          {mrpLoading ? (
+            <MrpLoadingBadge>
+              <div className="label">MRP</div>
+              <div className="price">fetching…</div>
+            </MrpLoadingBadge>
+          ) : hasMrp ? (
             <MrpBadge>
               <div className="label">MRP Candidate</div>
               <div className="price">{formatMrp(product.mrp)}</div>
             </MrpBadge>
-          )}
+          ) : null}
         </ProductMeta>
       </Header>
 
-      {!hasMrp && (
+      {!hasMrp && !mrpLoading && product.found === false && (
         <Notice>
           💰 <strong>MRP not found.</strong> No MRP value was returned by
           the backend. Check the exact package or a reliable source.

@@ -214,12 +214,12 @@ function App() {
             <ErrorState message={error} onRetry={() => handleSearch()} />
           )}
 
-          {!loading && !error && product && (
+          {!loading && !error && product && product.found && (
             <ProductCard product={product} onReset={handleReset} />
           )}
 
-          {!loading && !error && !product && searched && (
-            <EmptyState />
+          {!loading && !error && (!product || !product.found) && searched && (
+            <EmptyState barcode={barcode} />
           )}
         </Container>
       </AppWrapper>
