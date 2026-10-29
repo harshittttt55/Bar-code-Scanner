@@ -579,7 +579,9 @@ function ProductCard({ product, onReset, mrpLoading }) {
             </MrpLoadingBadge>
           ) : hasMrp ? (
             <MrpBadge>
-              <div className="label">MRP Candidate</div>
+              <div className="label">
+                {product.verification_status === 'confirmed_via_catalog' ? 'Verified MRP' : 'MRP'}
+              </div>
               <div className="price">{formatMrp(product.mrp)}</div>
             </MrpBadge>
           ) : null}

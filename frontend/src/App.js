@@ -6,6 +6,7 @@ import ProductCard from './components/ProductCard';
 import LoadingSpinner from './components/LoadingSpinner';
 import EmptyState from './components/EmptyState';
 import ErrorState from './components/ErrorState';
+import MedicineAssistant from './components/MedicineAssistant';
 
 const GlobalStyle = createGlobalStyle`
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -44,24 +45,19 @@ const Background = styled.div`
   &::before {
     content: '';
     position: absolute;
-    width: 600px;
-    height: 600px;
+    width: 600px; height: 600px;
     border-radius: 50%;
     background: radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%);
-    top: -200px;
-    left: -100px;
+    top: -200px; left: -100px;
     pointer-events: none;
   }
-
   &::after {
     content: '';
     position: absolute;
-    width: 500px;
-    height: 500px;
+    width: 500px; height: 500px;
     border-radius: 50%;
     background: radial-gradient(circle, rgba(139,92,246,0.10) 0%, transparent 70%);
-    bottom: -100px;
-    right: -50px;
+    bottom: -100px; right: -50px;
     pointer-events: none;
   }
 `;
@@ -86,7 +82,14 @@ const Container = styled.div`
 
 const Header = styled.header`
   text-align: center;
-  margin-bottom: 50px;
+  margin-bottom: 40px;
+`;
+
+const Icon = styled.div`
+  font-size: 2.5rem;
+  margin-bottom: 16px;
+  animation: ${float} 3s ease-in-out infinite;
+  user-select: none;
 `;
 
 const LogoBadge = styled.div`
@@ -105,14 +108,12 @@ const LogoBadge = styled.div`
   margin-bottom: 20px;
 
   .dot {
-    width: 6px;
-    height: 6px;
+    width: 6px; height: 6px;
     border-radius: 50%;
     background: #6366f1;
     box-shadow: 0 0 8px #6366f1;
     animation: pulse 2s infinite;
   }
-
   @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }
@@ -136,19 +137,66 @@ const Title = styled.h1`
 const Subtitle = styled.p`
   color: #64748b;
   font-size: 1.05rem;
-  max-width: 480px;
+  max-width: 520px;
   margin: 0 auto;
   font-weight: 400;
 `;
 
-const BarcodeIcon = styled.div`
-  font-size: 2.5rem;
-  margin-bottom: 16px;
-  animation: ${float} 3s ease-in-out infinite;
-  user-select: none;
+// ── Mode toggle ───────────────────────────────────────────────────────────────
+
+const ToggleBar = styled.div`
+  display: flex;
+  gap: 8px;
+  background: rgba(15,23,42,0.8);
+  border: 1px solid rgba(99,102,241,0.15);
+  border-radius: 14px;
+  padding: 6px;
+  margin-bottom: 32px;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+`;
+
+const ToggleBtn = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border-radius: 10px;
+  border: none;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  ${({ active, mode }) => active ? `
+    background: ${mode === 'medicine'
+      ? 'linear-gradient(135deg, #059669, #10b981)'
+      : 'linear-gradient(135deg, #6366f1, #8b5cf6)'};
+    color: #fff;
+    box-shadow: 0 4px 14px ${mode === 'medicine'
+      ? 'rgba(16,185,129,0.3)'
+      : 'rgba(99,102,241,0.3)'};
+  ` : `
+    background: transparent;
+    color: #64748b;
+    &:hover { color: #94a3b8; background: rgba(99,102,241,0.05); }
+  `}
+`;
+
+// ── Medicine header ───────────────────────────────────────────────────────────
+
+const MedTitle = styled(Title)`
+  background: linear-gradient(135deg, #e2e8f0 0%, #6ee7b7 50%, #10b981 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 `;
 
 function App() {
+  const [mode, setMode] = useState('barcode'); // 'barcode' | 'medicine'
+
+  // Barcode state
   const [barcode, setBarcode] = useState('');
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -158,18 +206,15 @@ function App() {
   const handleSearch = async (barcodeValue) => {
     const code = barcodeValue || barcode;
     if (!code.trim()) return;
-
     setLoading(true);
     setError(null);
     setProduct(null);
     setSearched(true);
-
     try {
       const response = await axios.post('/api/product', { barcode: code.trim() });
       setProduct(response.data);
     } catch (err) {
-      const msg = err.response?.data?.detail || 'Failed to fetch product info. Please check your backend connection.';
-      setError(msg);
+      setError(err.response?.data?.detail || 'Failed to fetch product info. Please check your backend connection.');
     } finally {
       setLoading(false);
     }
@@ -182,6 +227,11 @@ function App() {
     setSearched(false);
   };
 
+  const switchMode = (m) => {
+    setMode(m);
+    if (m === 'barcode') handleReset();
+  };
+
   return (
     <>
       <GlobalStyle />
@@ -190,37 +240,65 @@ function App() {
         <GridLines />
         <Container>
           <Header>
-            <BarcodeIcon>▦</BarcodeIcon>
+            <Icon>{mode === 'medicine' ? '💊' : '▦'}</Icon>
             <LogoBadge>
               <span className="dot" />
               Powered by Gemini AI
             </LogoBadge>
-            <Title>BarcodeAI Scanner</Title>
+            {mode === 'medicine'
+              ? <MedTitle>Medicine Assistant</MedTitle>
+              : <Title>BarcodeAI Scanner</Title>
+            }
             <Subtitle>
-              Enter any product barcode and instantly get detailed information powered by Google Gemini
+              {mode === 'medicine'
+                ? 'Ask about any medicine — uses, side effects, comparisons, and alternatives'
+                : 'Enter any product barcode and instantly get verified details'}
             </Subtitle>
           </Header>
 
-          <BarcodeInput
-            barcode={barcode}
-            setBarcode={setBarcode}
-            onSearch={handleSearch}
-            loading={loading}
-          />
+          <ToggleBar>
+            <ToggleBtn
+              active={mode === 'barcode'}
+              mode="barcode"
+              onClick={() => switchMode('barcode')}
+            >
+              ▦ Barcode Scanner
+            </ToggleBtn>
+            <ToggleBtn
+              active={mode === 'medicine'}
+              mode="medicine"
+              onClick={() => switchMode('medicine')}
+            >
+              💊 Medicine Assistant
+            </ToggleBtn>
+          </ToggleBar>
 
-          {loading && <LoadingSpinner />}
+          {mode === 'barcode' && (
+            <>
+              <BarcodeInput
+                barcode={barcode}
+                setBarcode={setBarcode}
+                onSearch={handleSearch}
+                loading={loading}
+              />
 
-          {!loading && error && (
-            <ErrorState message={error} onRetry={() => handleSearch()} />
+              {loading && <LoadingSpinner />}
+
+              {!loading && error && (
+                <ErrorState message={error} onRetry={() => handleSearch()} />
+              )}
+
+              {!loading && !error && product && product.found && (
+                <ProductCard product={product} onReset={handleReset} />
+              )}
+
+              {!loading && !error && (!product || !product.found) && searched && (
+                <EmptyState barcode={barcode} />
+              )}
+            </>
           )}
 
-          {!loading && !error && product && product.found && (
-            <ProductCard product={product} onReset={handleReset} />
-          )}
-
-          {!loading && !error && (!product || !product.found) && searched && (
-            <EmptyState barcode={barcode} />
-          )}
+          {mode === 'medicine' && <MedicineAssistant />}
         </Container>
       </AppWrapper>
     </>
