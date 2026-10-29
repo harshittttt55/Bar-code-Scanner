@@ -57,6 +57,20 @@ const Card = styled.div`
   @media(max-width:500px){ padding: 20px 16px; }
 `;
 
+const AnimatedCard = styled(Card)`
+  animation: ${fadeInUp} 0.35s ease forwards;
+`;
+
+const SpinnerIcon = styled.span`
+  width: 14px;
+  height: 14px;
+  border: 2px solid #fff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  animation: ${spin} 0.7s linear infinite;
+`;
+
 const Label = styled.label`
   display: block;
   font-size: 0.72rem;
@@ -503,7 +517,7 @@ function AskPanel() {
           </div>
           <Btn onClick={() => doAsk()} disabled={loading || !query.trim()}>
             {loading
-              ? <><span style={{ width:14,height:14,border:'2px solid #fff',borderTopColor:'transparent',borderRadius:'50%',animation:`${spin} 0.7s linear infinite`,display:'inline-block' }} /> Asking…</>
+              ? <><SpinnerIcon /> Asking…</>
               : '💊 Ask'}
           </Btn>
         </div>
@@ -533,13 +547,13 @@ function AskPanel() {
       )}
 
       {!loading && result && (
-        <Card border={CLR.greenBorder} style={{ animation:`${fadeInUp} 0.35s ease forwards` }}>
+        <AnimatedCard border={CLR.greenBorder}>
           <ModeBadge>{MODE_LABEL[result.mode] || '💊 Result'}</ModeBadge>
           <MarkdownBlock dangerouslySetInnerHTML={{ __html: renderMarkdown(result.answer) }} />
           <Expandable label="Sources & disclaimer">
             <Disclaimer style={{ marginTop:0 }}>⚕️ {result.disclaimer}</Disclaimer>
           </Expandable>
-        </Card>
+        </AnimatedCard>
       )}
     </>
   );
@@ -693,7 +707,7 @@ function ComparePanel() {
             style={{ minWidth:140 }}
           >
             {loading
-              ? <><span style={{ width:14,height:14,border:'2px solid #fff',borderTopColor:'transparent',borderRadius:'50%',animation:`${spin} 0.7s linear infinite`,display:'inline-block' }} /> Comparing…</>
+              ? <><SpinnerIcon /> Comparing…</>
               : '⚖️ Compare'}
           </Btn>
           {result && !loading && (
@@ -741,7 +755,7 @@ function ComparePanel() {
 
       {/* Result */}
       {!loading && !error && result && (
-        <Card border={CLR.purpleBorder} style={{ animation:`${fadeInUp} 0.35s ease forwards` }}>
+        <AnimatedCard border={CLR.purpleBorder}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginBottom:16 }}>
             <ModeBadge bg={CLR.purpleDim} borderColor={CLR.purpleBorder} color="#a78bfa">
               ⚖️ {lockedA} vs {lockedB}
@@ -761,7 +775,7 @@ function ComparePanel() {
           <Expandable label="Disclaimer & sources">
             <Disclaimer style={{ marginTop:0 }}>⚕️ {result.disclaimer}</Disclaimer>
           </Expandable>
-        </Card>
+        </AnimatedCard>
       )}
 
       {/* Empty state — both selected but no result yet */}
