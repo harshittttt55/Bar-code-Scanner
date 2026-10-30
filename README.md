@@ -2,6 +2,16 @@
 
 A React web app for barcode-based product lookups and a medicine assistant, backed by a FastAPI API.
 
+## Screenshots
+
+### Barcode Scanner
+
+![Barcode Scanner](frontend/public/screenshots/barcode-scanner.png)
+
+### Medicine Assistant
+
+![Medicine Assistant](frontend/public/screenshots/medicine-assistant.png)
+
 ## Requirements
 
 - Python 3.10 or newer
@@ -87,3 +97,11 @@ npm start
 The frontend development server proxies API requests to the backend on port `8000`. The backend can start without a Gemini key, but AI-powered requests will return an error until `GEMINI_API_KEY` is configured.
 
 To stop either server, press `Ctrl+C` in its terminal. On Linux, the repository also includes `start.sh` to install dependencies and start both development servers together.
+
+## Product data sources and Gemini verification
+
+For barcode lookups, the backend compares Gemini's product name and brand with its local FMCG catalog, loaded from the `backend/Indian_FMCG_Product_Catalog*.xlsx` files. When a barcode is present in that catalog, the catalog data is returned as the authoritative result, including when it does not match Gemini's response.
+
+If a barcode is not in the local catalog, the app may return a confident Gemini response without independent verification. If Gemini cannot identify the product, the backend looks it up in [Open Food Facts India](https://in.openfoodfacts.org/) and [Open Food Facts](https://world.openfoodfacts.org/). Open Food Facts is a fallback data source, not a check of Gemini's response.
+
+The medicine assistant does not currently fetch or verify answers against external medicine databases. Its Gemini prompts ask for sources such as [CDSCO](https://cdsco.gov.in/), [Tata 1mg](https://www.1mg.com/), [PharmEasy](https://pharmeasy.in/), [MedlinePlus](https://medlineplus.gov/), and [WHO](https://www.who.int/), but these are requested citations, not data sources integrated into the application. Check medical information with a qualified healthcare professional.
