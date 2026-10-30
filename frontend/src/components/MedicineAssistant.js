@@ -214,48 +214,6 @@ const ErrorBox = styled.div`
   animation: ${fadeInUp} 0.3s ease forwards;
 `;
 
-// ── Skeleton loader ───────────────────────────────────────────────────────────
-
-const shimmerStyle = css`
-  background: linear-gradient(90deg, rgba(30,41,59,0.8) 25%, rgba(51,65,85,0.6) 50%, rgba(30,41,59,0.8) 75%);
-  background-size: 800px 100%;
-  animation: ${shimmer} 1.4s ease-in-out infinite;
-`;
-
-const SkeletonLine = styled.div`
-  ${shimmerStyle}
-  height: ${p => p.h || '14px'};
-  width: ${p => p.w || '100%'};
-  border-radius: 6px;
-  margin-bottom: ${p => p.mb || '10px'};
-`;
-
-const SkeletonBlock = styled.div`
-  background: ${CLR.card};
-  border: 1px solid ${CLR.border};
-  border-radius: 16px;
-  padding: 22px 26px;
-  margin-bottom: 14px;
-`;
-
-function CompareSkeleton() {
-  return (
-    <>
-      <SkeletonBlock>
-        <SkeletonLine h="10px" w="120px" mb="18px" />
-        {[100, 80, 90, 70, 85, 75, 95].map((w, i) => (
-          <SkeletonLine key={i} w={`${w}%`} mb="10px" />
-        ))}
-      </SkeletonBlock>
-      <SkeletonBlock>
-        <SkeletonLine h="10px" w="100px" mb="14px" />
-        <SkeletonLine w="88%" />
-        <SkeletonLine w="70%" />
-      </SkeletonBlock>
-    </>
-  );
-}
-
 // ── Markdown renderer ─────────────────────────────────────────────────────────
 
 const MarkdownBlock = styled.div`
@@ -360,11 +318,28 @@ function AutoInput({ value, onChange, onSelect, placeholder, disabled, accentBor
   const pick = s => { onSelect(s); setOpen(false); };
 
   const onKey = e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (open && active >= 0) {
+        pick(filtered[active]);
+      } else if (value.trim()) {
+        // lock whatever the user typed, even if not in suggestions
+        pick(value.trim());
+      }
+      return;
+    }
     if (!open) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a+1, filtered.length-1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(a => Math.max(a-1, 0)); }
-    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); pick(filtered[active]); }
     else if (e.key === 'Escape') setOpen(false);
+  };
+
+  const onBlur = () => {
+    // small delay so mousedown on suggestion fires first
+    setTimeout(() => {
+      if (value.trim()) pick(value.trim());
+      setOpen(false);
+    }, 150);
   };
 
   return (
@@ -373,6 +348,7 @@ function AutoInput({ value, onChange, onSelect, placeholder, disabled, accentBor
         value={value}
         onChange={e => { onChange(e.target.value); }}
         onKeyDown={onKey}
+        onBlur={onBlur}
         onFocus={() => filtered.length > 0 && setOpen(true)}
         placeholder={placeholder}
         disabled={disabled}
@@ -568,14 +544,331 @@ const COMPARE_SAMPLES = [
   { a:'Pan 40',            b:'Omeprazole 20mg' },
 ];
 
+// Rows shown in the three-column layout
+const COMPARE_ROWS = [
+  { key: 'uses',                 label: 'Uses' },
+  { key: 'common_dosage',        label: 'Common Dosage' },
+  { key: 'mechanism',            label: 'Mechanism of Action' },
+  { key: 'side_effects',         label: 'Common Side Effects' },
+  { key: 'suitable_for',         label: 'Suitable For' },
+  { key: 'active_ingredients',   label: 'Active Ingredients' },
+  { key: 'strength',             label: 'Strength' },
+  { key: 'dosage_form',          label: 'Dosage Form' },
+  { key: 'manufacturer',         label: 'Manufacturer' },
+  { key: 'mrp',                  label: 'MRP (approx)' },
+  { key: 'drug_interactions',    label: 'Drug Interactions' },
+  { key: 'warnings',             label: 'Warnings' },
+  { key: 'prescription_required',label: 'Prescription Required' },
+];
+
+// ── Three-column comparison layout styled components ──────────────────────────
+
+const CompareGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 160px 1fr;
+  gap: 0;
+  margin-bottom: 20px;
+  animation: ${fadeInUp} 0.4s ease forwards;
+
+  @media(max-width: 680px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const MedHeader = styled.div`
+  border-radius: ${p => p.side === 'a' ? '16px 0 0 0' : '0 16px 0 0'};
+  background: ${p => p.side === 'a'
+    ? 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.05))'
+    : 'linear-gradient(135deg, rgba(139,92,246,0.15), rgba(139,92,246,0.05))'};
+  border: 1px solid ${p => p.side === 'a' ? CLR.greenBorder : CLR.purpleBorder};
+  border-bottom: none;
+  padding: 22px 20px 18px;
+
+  @media(max-width: 680px) {
+    border-radius: ${p => p.side === 'a' ? '16px 16px 0 0' : '0'};
+    border-bottom: ${p => p.side === 'a' ? 'none' : `1px solid ${CLR.purpleBorder}`};
+  }
+`;
+
+const SpineHeader = styled.div`
+  background: rgba(15,23,42,0.9);
+  border-top: 1px solid ${CLR.border};
+  border-bottom: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 8px;
+
+  @media(max-width: 680px) { display: none; }
+`;
+
+const ProductLabel = styled.div`
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: ${p => p.color};
+  background: ${p => p.bg};
+  border: 1px solid ${p => p.borderColor};
+  border-radius: 100px;
+  padding: 2px 10px;
+  display: inline-block;
+  margin-bottom: 10px;
+`;
+
+const MedName = styled.div`
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: ${CLR.text};
+  line-height: 1.2;
+  margin-bottom: 4px;
+`;
+
+const MedBrand = styled.div`
+  font-size: 0.82rem;
+  color: ${CLR.sub};
+`;
+
+// A single comparison row: left cell | spine pill | right cell
+const RowLeft = styled.div`
+  background: rgba(17,24,39,0.7);
+  border-left: 1px solid ${CLR.greenBorder};
+  border-right: none;
+  border-top: 1px solid rgba(16,185,129,0.08);
+  border-bottom: none;
+  padding: 16px 20px;
+  position: relative;
+
+  /* dotted connector line on right edge */
+  &::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 50%;
+    width: 100%;
+    height: 1px;
+    background: repeating-linear-gradient(
+      90deg,
+      rgba(16,185,129,0.3) 0px,
+      rgba(16,185,129,0.3) 4px,
+      transparent 4px,
+      transparent 10px
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  @media(max-width: 680px) {
+    border: 1px solid ${CLR.greenBorder};
+    border-top: none;
+    &::after { display: none; }
+  }
+`;
+
+const RowRight = styled.div`
+  background: rgba(17,24,39,0.7);
+  border-right: 1px solid ${CLR.purpleBorder};
+  border-left: none;
+  border-top: 1px solid rgba(139,92,246,0.08);
+  border-bottom: none;
+  padding: 16px 20px;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 100%;
+    height: 1px;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent 0px,
+      transparent 6px,
+      rgba(139,92,246,0.3) 6px,
+      rgba(139,92,246,0.3) 10px
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  @media(max-width: 680px) {
+    border: 1px solid ${CLR.purpleBorder};
+    border-top: none;
+    &::before { display: none; }
+  }
+`;
+
+const RowSpine = styled.div`
+  background: rgba(15,23,42,0.95);
+  border-top: 1px solid ${CLR.border};
+  border-left: 1px solid ${CLR.border};
+  border-right: 1px solid ${CLR.border};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 6px;
+  z-index: 1;
+
+  @media(max-width: 680px) { display: none; }
+`;
+
+const SpinePill = styled.div`
+  background: rgba(30,41,59,0.95);
+  border: 1px solid ${CLR.border};
+  border-radius: 100px;
+  padding: 6px 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: ${CLR.sub};
+  text-align: center;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  white-space: nowrap;
+  z-index: 2;
+`;
+
+// Last row gets bottom border-radius
+const RowLeftLast = styled(RowLeft)`
+  border-bottom: 1px solid ${CLR.greenBorder};
+  border-radius: 0 0 0 16px;
+  @media(max-width: 680px) { border-radius: 0; }
+`;
+
+const RowRightLast = styled(RowRight)`
+  border-bottom: 1px solid ${CLR.purpleBorder};
+  border-radius: 0 0 16px 0;
+  @media(max-width: 680px) { border-radius: 0 0 16px 16px; }
+`;
+
+const RowSpineLast = styled(RowSpine)`
+  border-bottom: 1px solid ${CLR.border};
+  border-radius: 0 0 0 0;
+`;
+
+const CellLabel = styled.div`
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: ${p => p.color || CLR.green};
+  margin-bottom: 5px;
+`;
+
+const CellValue = styled.div`
+  font-size: 0.85rem;
+  color: ${p => p.muted ? CLR.muted : '#cbd5e1'};
+  line-height: 1.6;
+  position: relative;
+  z-index: 1;
+`;
+
+const NA = () => <CellValue muted>Data not available</CellValue>;
+
+const KeyDiffBox = styled.div`
+  background: rgba(99,102,241,0.06);
+  border: 1px solid rgba(99,102,241,0.2);
+  border-radius: 14px;
+  padding: 18px 22px;
+  margin-bottom: 16px;
+  animation: ${fadeInUp} 0.4s ease forwards;
+`;
+
+const SubstBox = styled.div`
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  border: 1px solid ${p => p.borderColor || 'rgba(99,102,241,0.2)'};
+  animation: ${fadeInUp} 0.4s ease forwards;
+`;
+
+const SubstHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 22px;
+  background: ${p => p.bg || 'rgba(99,102,241,0.08)'};
+  border-bottom: 1px solid ${p => p.borderColor || 'rgba(99,102,241,0.15)'};
+`;
+
+const VerdictBadge = styled.span`
+  padding: 3px 14px;
+  border-radius: 100px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: ${p => p.bg};
+  color: ${p => p.color};
+  border: 1px solid ${p => p.borderColor};
+  white-space: nowrap;
+`;
+
+const SubstConditions = styled.div`
+  padding: 14px 22px;
+  background: rgba(15,23,42,0.5);
+  border-top: 1px solid rgba(99,102,241,0.1);
+  font-size: 0.83rem;
+  color: #cbd5e1;
+  line-height: 1.6;
+`;
+
+const SubstCaution = styled.div`
+  padding: 12px 22px;
+  background: rgba(245,158,11,0.05);
+  border-top: 1px solid rgba(245,158,11,0.15);
+  font-size: 0.8rem;
+  color: #fbbf24;
+  line-height: 1.6;
+`;
+
+// ── Skeleton for three-column layout ─────────────────────────────────────────
+
+const shimmerStyleLocal = css`
+  background: linear-gradient(90deg,rgba(30,41,59,0.8) 25%,rgba(51,65,85,0.6) 50%,rgba(30,41,59,0.8) 75%);
+  background-size:800px 100%;
+  animation:${shimmer} 1.4s ease-in-out infinite;
+`;
+
+const SkeletonLine = styled.div`
+  ${shimmerStyleLocal}
+  height:${p=>p.h||'13px'};
+  width:${p=>p.w||'100%'};
+  border-radius:6px;
+  margin-bottom:${p=>p.mb||'9px'};
+`;
+
+function CompareSkeleton() {
+  return (
+    <div style={{ display:'grid', gridTemplateColumns:'1fr 160px 1fr', gap:0, marginBottom:20 }}>
+      {[0,1,2].map(col => (
+        <div key={col} style={{
+          background: CLR.card,
+          border:`1px solid ${CLR.border}`,
+          borderRadius: col===0?'16px 0 0 16px': col===2?'0 16px 16px 0':'0',
+          padding:'22px 20px'
+        }}>
+          <SkeletonLine h="10px" w="60px" mb="14px" />
+          <SkeletonLine h="22px" w="80%" mb="8px" />
+          <SkeletonLine h="10px" w="50%" mb="24px" />
+          {[90,70,85,60,80,75].map((w,i)=>(
+            <SkeletonLine key={i} w={`${w}%`} mb="10px" />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ComparePanel() {
-  const [medA, setMedA]     = useState('');
-  const [medB, setMedB]     = useState('');
+  const [medA, setMedA]       = useState('');
+  const [medB, setMedB]       = useState('');
   const [lockedA, setLockedA] = useState('');
   const [lockedB, setLockedB] = useState('');
-  const [result, setResult] = useState(null);
+  const [result, setResult]   = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError]   = useState(null);
+  const [error, setError]     = useState(null);
 
   const bothLocked = lockedA && lockedB;
 
@@ -596,9 +889,9 @@ function ComparePanel() {
   const selectB = s => { setMedB(s); setLockedB(s); };
 
   const swap = () => {
-    const tmpA = lockedA, tmpB = lockedB;
-    setLockedA(tmpB); setMedA(tmpB);
-    setLockedB(tmpA); setMedB(tmpA);
+    const [tA, tB] = [lockedA, lockedB];
+    setLockedA(tB); setMedA(tB);
+    setLockedB(tA); setMedB(tA);
     setResult(null);
   };
 
@@ -607,12 +900,152 @@ function ComparePanel() {
     setResult(null); setError(null);
   };
 
-  const replaceA = () => { setLockedA(''); setMedA(''); setResult(null); };
-  const replaceB = () => { setLockedB(''); setMedB(''); setResult(null); };
+  // Render substitutability section
+  const renderSubstitutability = (sub, nameA, nameB) => {
+    if (!sub) return null;
+
+    const verdictMap = {
+      yes:     { label: 'Yes, can be replaced',     bg: 'rgba(16,185,129,0.15)',  color: '#34d399', borderColor: 'rgba(16,185,129,0.3)',  headerBg: 'rgba(16,185,129,0.07)',  headerBorder: 'rgba(16,185,129,0.2)'  },
+      partial: { label: 'Partially — with conditions', bg: 'rgba(245,158,11,0.15)', color: '#fbbf24', borderColor: 'rgba(245,158,11,0.3)', headerBg: 'rgba(245,158,11,0.07)', headerBorder: 'rgba(245,158,11,0.2)' },
+      no:      { label: 'No, cannot be replaced',   bg: 'rgba(239,68,68,0.15)',   color: '#fca5a5', borderColor: 'rgba(239,68,68,0.3)',   headerBg: 'rgba(239,68,68,0.07)',   headerBorder: 'rgba(239,68,68,0.2)'  },
+    };
+
+    const v = verdictMap[sub.verdict] || verdictMap.partial;
+
+    return (
+      <SubstBox borderColor={v.borderColor}>
+        {/* Header */}
+        <SubstHeader bg={v.headerBg} borderColor={v.headerBorder}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: CLR.sub, marginBottom: 8 }}>
+              Can <strong style={{ color: CLR.text }}>{nameA}</strong> be replaced by <strong style={{ color: CLR.text }}>{nameB}</strong>?
+            </div>
+            <VerdictBadge bg={v.bg} color={v.color} borderColor={v.borderColor}>
+              {v.label}
+            </VerdictBadge>
+            {sub.summary && (
+              <div style={{ marginTop: 10, fontSize: '0.88rem', color: '#cbd5e1', lineHeight: 1.65 }}>
+                {sub.summary}
+              </div>
+            )}
+          </div>
+        </SubstHeader>
+
+        {/* Reason */}
+        {sub.reason && (
+          <SubstConditions>
+            <span style={{ fontWeight: 600, color: '#a5b4fc' }}>Why: </span>
+            {sub.reason}
+          </SubstConditions>
+        )}
+
+        {/* Conditions */}
+        {sub.conditions && (
+          <SubstConditions style={{ borderTop: '1px solid rgba(99,102,241,0.1)' }}>
+            <span style={{ fontWeight: 600, color: '#a5b4fc' }}>Conditions: </span>
+            {sub.conditions}
+          </SubstConditions>
+        )}
+
+        {/* Caution */}
+        {sub.caution && (
+          <SubstCaution>
+            ⚠️ <span style={{ fontWeight: 600 }}>Caution: </span>{sub.caution}
+          </SubstCaution>
+        )}
+      </SubstBox>
+    );
+  };
+
+  // Render the three-column comparison table from structured data
+  const renderStructured = (data) => {
+    const A = data.med_a || {};
+    const B = data.med_b || {};
+
+    return (
+      <>
+        <CompareGrid>
+          {/* Header row */}
+          <MedHeader side="a">
+            <ProductLabel color={CLR.green} bg={CLR.greenDim} borderColor={CLR.greenBorder}>
+              Product A
+            </ProductLabel>
+            <MedName>{A.generic_name || lockedA}</MedName>
+            {A.brand_name && A.brand_name !== A.generic_name && (
+              <MedBrand>{A.brand_name}</MedBrand>
+            )}
+          </MedHeader>
+
+          <SpineHeader>
+            <SpinePill>vs</SpinePill>
+          </SpineHeader>
+
+          <MedHeader side="b">
+            <ProductLabel color="#a78bfa" bg={CLR.purpleDim} borderColor={CLR.purpleBorder}>
+              Product B
+            </ProductLabel>
+            <MedName>{B.generic_name || lockedB}</MedName>
+            {B.brand_name && B.brand_name !== B.generic_name && (
+              <MedBrand>{B.brand_name}</MedBrand>
+            )}
+          </MedHeader>
+
+          {/* Data rows */}
+          {COMPARE_ROWS.map((row, idx) => {
+            const isLast = idx === COMPARE_ROWS.length - 1;
+            const Left  = isLast ? RowLeftLast  : RowLeft;
+            const Right = isLast ? RowRightLast : RowRight;
+            const Spine = isLast ? RowSpineLast : RowSpine;
+            const aVal = A[row.key];
+            const bVal = B[row.key];
+
+            return [
+              <Left key={`a-${row.key}`}>
+                <CellLabel color={CLR.green}>{row.label}</CellLabel>
+                {aVal && aVal !== 'Data not available'
+                  ? <CellValue>{aVal}</CellValue>
+                  : <NA />}
+              </Left>,
+
+              <Spine key={`s-${row.key}`}>
+                <SpinePill>{row.label}</SpinePill>
+              </Spine>,
+
+              <Right key={`b-${row.key}`}>
+                <CellLabel color="#a78bfa">{row.label}</CellLabel>
+                {bVal && bVal !== 'Data not available'
+                  ? <CellValue>{bVal}</CellValue>
+                  : <NA />}
+              </Right>,
+            ];
+          })}
+        </CompareGrid>
+
+        {/* Key differences */}
+        {data.key_differences && (
+          <KeyDiffBox>
+            <div style={{ fontSize:'0.72rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:'#a5b4fc', marginBottom:10 }}>
+              Key Differences
+            </div>
+            <div style={{ fontSize:'0.88rem', color:'#cbd5e1', lineHeight:1.7 }}>
+              {data.key_differences}
+            </div>
+          </KeyDiffBox>
+        )}
+
+        {/* Substitutability */}
+        {renderSubstitutability(data.substitutability, A.generic_name || lockedA, B.generic_name || lockedB)}
+
+        <Disclaimer>
+          ⚕️ {data.disclaimer || 'This information is for educational purposes only. Always consult a qualified healthcare professional before making any medical decisions.'}
+        </Disclaimer>
+      </>
+    );
+  };
 
   return (
     <>
-      {/* Input area */}
+      {/* Input card */}
       <Card border={CLR.purpleBorder}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
           <Label color="#a78bfa" style={{ margin:0 }}>Select two medicines to compare</Label>
@@ -623,7 +1056,6 @@ function ComparePanel() {
           )}
         </div>
 
-        {/* Slots row */}
         <div style={{ display:'flex', gap:10, alignItems:'flex-start', flexWrap:'wrap', marginBottom:14 }}>
           {/* Slot A */}
           <div style={{ flex:1, minWidth:200 }}>
@@ -632,43 +1064,25 @@ function ComparePanel() {
                 <div style={{ fontSize:'0.65rem', color:CLR.green, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:3 }}>Medicine A</div>
                 <SlotName>{lockedA}</SlotName>
                 <SlotActions>
-                  <GhostBtn sm borderColor="rgba(16,185,129,0.25)" color={CLR.green} hoverBg={CLR.greenDim} hoverColor={CLR.green} hoverBorder={CLR.green} onClick={replaceA}>
+                  <GhostBtn sm borderColor={CLR.greenBorder} color={CLR.green} hoverBg={CLR.greenDim} hoverColor={CLR.green} hoverBorder={CLR.green}
+                    onClick={() => { setLockedA(''); setMedA(''); setResult(null); }}>
                     ✎ Replace
                   </GhostBtn>
                 </SlotActions>
               </SlotCard>
             ) : (
-              <AutoInput
-                value={medA}
-                onChange={setMedA}
-                onSelect={selectA}
-                placeholder="Medicine A — e.g. Dolo 650"
-                disabled={loading}
-                accentBorder="rgba(16,185,129,0.3)"
-                focusColor={CLR.green}
-                glowColor="rgba(16,185,129,0.1)"
-              />
+              <AutoInput value={medA} onChange={setMedA} onSelect={selectA}
+                placeholder="Medicine A — e.g. Dolo 650" disabled={loading}
+                accentBorder="rgba(16,185,129,0.3)" focusColor={CLR.green} glowColor="rgba(16,185,129,0.1)" />
             )}
           </div>
 
-          {/* Swap/VS button */}
-          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:4, paddingTop: lockedA || lockedB ? 14 : 10 }}>
-            {bothLocked ? (
-              <GhostBtn
-                onClick={swap}
-                disabled={loading}
-                borderColor={CLR.purpleBorder}
-                color="#a78bfa"
-                hoverBg={CLR.purpleDim}
-                hoverColor="#c4b5fd"
-                hoverBorder={CLR.purple}
-                title="Swap medicines"
-              >
-                ⇄ Swap
-              </GhostBtn>
-            ) : (
-              <span style={{ color:CLR.muted, fontSize:'0.72rem', fontWeight:700, letterSpacing:'0.08em', padding:'0 4px' }}>VS</span>
-            )}
+          {/* VS / Swap */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', paddingTop: lockedA || lockedB ? 14 : 10 }}>
+            {bothLocked
+              ? <GhostBtn onClick={swap} disabled={loading} borderColor={CLR.purpleBorder} color="#a78bfa" hoverBg={CLR.purpleDim} hoverColor="#c4b5fd" hoverBorder={CLR.purple}>⇄ Swap</GhostBtn>
+              : <span style={{ color:CLR.muted, fontSize:'0.72rem', fontWeight:700, letterSpacing:'0.08em', padding:'0 4px' }}>VS</span>
+            }
           </div>
 
           {/* Slot B */}
@@ -678,42 +1092,29 @@ function ComparePanel() {
                 <div style={{ fontSize:'0.65rem', color:'#a78bfa', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:3 }}>Medicine B</div>
                 <SlotName>{lockedB}</SlotName>
                 <SlotActions>
-                  <GhostBtn sm borderColor={CLR.purpleBorder} color="#a78bfa" hoverBg={CLR.purpleDim} hoverColor="#a78bfa" hoverBorder={CLR.purple} onClick={replaceB}>
+                  <GhostBtn sm borderColor={CLR.purpleBorder} color="#a78bfa" hoverBg={CLR.purpleDim} hoverColor="#a78bfa" hoverBorder={CLR.purple}
+                    onClick={() => { setLockedB(''); setMedB(''); setResult(null); }}>
                     ✎ Replace
                   </GhostBtn>
                 </SlotActions>
               </SlotCard>
             ) : (
-              <AutoInput
-                value={medB}
-                onChange={setMedB}
-                onSelect={selectB}
-                placeholder="Medicine B — e.g. Calpol 500"
-                disabled={loading}
-                accentBorder={CLR.purpleBorder}
-                focusColor={CLR.purple}
-                glowColor="rgba(139,92,246,0.1)"
-              />
+              <AutoInput value={medB} onChange={setMedB} onSelect={selectB}
+                placeholder="Medicine B — e.g. Calpol 500" disabled={loading}
+                accentBorder={CLR.purpleBorder} focusColor={CLR.purple} glowColor="rgba(139,92,246,0.1)" />
             )}
           </div>
         </div>
 
-        {/* Compare button */}
+        {/* Actions row */}
         <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
-          <Btn
-            bg="linear-gradient(135deg,#7c3aed,#8b5cf6)"
-            onClick={() => doCompare()}
-            disabled={loading || !bothLocked}
-            style={{ minWidth:140 }}
-          >
-            {loading
-              ? <><SpinnerIcon /> Comparing…</>
-              : '⚖️ Compare'}
+          <Btn bg="linear-gradient(135deg,#7c3aed,#8b5cf6)" onClick={() => doCompare()}
+            disabled={loading || !bothLocked} style={{ minWidth:140 }}>
+            {loading ? <><SpinnerIcon /> Comparing…</> : 'Compare'}
           </Btn>
           {result && !loading && (
-            <GhostBtn borderColor={CLR.purpleBorder} color="#a78bfa" hoverBg={CLR.purpleDim} hoverColor="#a78bfa" hoverBorder={CLR.purple} onClick={() => doCompare()} disabled={loading}>
-              ↻ Refresh
-            </GhostBtn>
+            <GhostBtn borderColor={CLR.purpleBorder} color="#a78bfa" hoverBg={CLR.purpleDim} hoverColor="#a78bfa" hoverBorder={CLR.purple}
+              onClick={() => doCompare()} disabled={loading}>↻ Refresh</GhostBtn>
           )}
           {!bothLocked && (
             <span style={{ color:CLR.muted, fontSize:'0.78rem' }}>
@@ -722,70 +1123,52 @@ function ComparePanel() {
           )}
         </div>
 
-        {/* Sample chips */}
         <Chips>
           <span style={{ fontSize:'0.72rem', color:CLR.muted }}>Quick compare:</span>
           {COMPARE_SAMPLES.map(s => (
             <Chip key={s.a} bg={CLR.purpleDim} borderColor={CLR.purpleBorder} color="#a78bfa"
-              onClick={() => { selectA(s.a); selectB(s.b); doCompare(s.a, s.b); }}
-              disabled={loading}
-            >
+              onClick={() => { selectA(s.a); selectB(s.b); doCompare(s.a, s.b); }} disabled={loading}>
               {s.a} vs {s.b}
             </Chip>
           ))}
         </Chips>
       </Card>
 
-      {/* Skeleton while loading */}
       {loading && <CompareSkeleton />}
 
-      {/* Error state */}
       {!loading && error && (
         <ErrorBox>
-          <span style={{ fontSize:'1.3rem' }}>⚠️</span>
           <div style={{ flex:1 }}>
             <div style={{ color:'#fca5a5', fontWeight:600, marginBottom:8 }}>Comparison failed</div>
-            <div style={{ color:'#94a3b8', fontSize:'0.85rem', marginBottom:12 }}>{error}</div>
-            <GhostBtn borderColor="rgba(239,68,68,0.3)" color="#fca5a5" hoverBg="rgba(239,68,68,0.08)" hoverColor="#fca5a5" hoverBorder="rgba(239,68,68,0.4)" onClick={() => doCompare()} disabled={!bothLocked}>
-              ↻ Retry
-            </GhostBtn>
+            <div style={{ color:CLR.sub, fontSize:'0.85rem', marginBottom:12 }}>{error}</div>
+            <GhostBtn borderColor="rgba(239,68,68,0.3)" color="#fca5a5" hoverBg="rgba(239,68,68,0.08)" hoverColor="#fca5a5" hoverBorder="rgba(239,68,68,0.4)"
+              onClick={() => doCompare()} disabled={!bothLocked}>↻ Retry</GhostBtn>
           </div>
         </ErrorBox>
       )}
 
-      {/* Result */}
       {!loading && !error && result && (
-        <AnimatedCard border={CLR.purpleBorder}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginBottom:16 }}>
-            <ModeBadge bg={CLR.purpleDim} borderColor={CLR.purpleBorder} color="#a78bfa">
-              ⚖️ {lockedA} vs {lockedB}
-            </ModeBadge>
+        <div>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, flexWrap:'wrap', gap:8 }}>
+            <span style={{ fontSize:'0.72rem', color:CLR.sub, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.08em' }}>
+              Comparison Result
+            </span>
             <div style={{ display:'flex', gap:8 }}>
-              <GhostBtn sm borderColor={CLR.purpleBorder} color="#a78bfa" hoverBg={CLR.purpleDim} hoverColor="#a78bfa" hoverBorder={CLR.purple} onClick={swap}>
-                ⇄ Swap & refresh
-              </GhostBtn>
-              <GhostBtn sm borderColor={CLR.border} color={CLR.sub} onClick={clear}>
-                ✕ Clear
-              </GhostBtn>
+              <GhostBtn sm borderColor={CLR.purpleBorder} color="#a78bfa" hoverBg={CLR.purpleDim} hoverColor="#a78bfa" hoverBorder={CLR.purple}
+                onClick={swap}>⇄ Swap</GhostBtn>
+              <GhostBtn sm borderColor={CLR.border} color={CLR.sub} onClick={clear}>✕ Clear</GhostBtn>
             </div>
           </div>
-
-          <MarkdownBlock dangerouslySetInnerHTML={{ __html: renderMarkdown(result.answer) }} />
-
-          <Expandable label="Disclaimer & sources">
-            <Disclaimer style={{ marginTop:0 }}>⚕️ {result.disclaimer}</Disclaimer>
-          </Expandable>
-        </AnimatedCard>
+          {renderStructured(result)}
+        </div>
       )}
 
-      {/* Empty state — both selected but no result yet */}
       {!loading && !error && !result && bothLocked && (
-        <Card border={CLR.border} style={{ textAlign:'center', padding:'32px 24px' }}>
-          <div style={{ fontSize:'2rem', marginBottom:10 }}>⚖️</div>
+        <Card border={CLR.border} style={{ textAlign:'center', padding:'28px 24px' }}>
           <div style={{ color:CLR.sub, fontSize:'0.9rem' }}>
             Ready to compare <strong style={{ color:CLR.text }}>{lockedA}</strong> and <strong style={{ color:CLR.text }}>{lockedB}</strong>
           </div>
-          <div style={{ color:CLR.muted, fontSize:'0.8rem', marginTop:6 }}>Hit Compare to see the detailed breakdown</div>
+          <div style={{ color:CLR.muted, fontSize:'0.8rem', marginTop:6 }}>Hit Compare to see the full breakdown</div>
         </Card>
       )}
     </>
