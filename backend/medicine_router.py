@@ -26,6 +26,10 @@ class MedicineRequest(BaseModel):
 class MedicineResponse(BaseModel):
     answer: str
     mode: str
+    med_a: dict | None = None
+    med_b: dict | None = None
+    key_differences: str | None = None
+    substitutability: dict | None = None
     disclaimer: str = (
         "This information is for educational purposes only. "
         "Always consult a qualified healthcare professional before making any medical decisions."
@@ -72,32 +76,60 @@ RESPONSE FORMAT — choose based on the user's query:
 Always respond with ONLY a valid JSON object — no extra text outside the JSON."""
 
 
-_COMPARE_PROMPT = """You are an Indian pharmaceutical expert. Compare two medicines side by side.
+_COMPARE_PROMPT = """You are an Indian pharmaceutical expert. Compare two medicines and return structured data.
 
 RULES:
-- Never invent data. Mark unknown fields as "Data not available".
+- Never invent data. Use "Data not available" for unknown fields.
 - Be precise about strengths, dosage forms, and manufacturers.
-- Cite Indian sources (1mg, PharmEasy, CDSCO) where applicable.
-- Always note that substitution requires a doctor's advice.
+- Always note substitution requires a doctor's advice.
 
-Return ONLY a valid JSON object:
+Return ONLY this exact JSON structure (no extra text):
 {
   "mode": "comparison",
-  "answer": "<a markdown comparison table with these exact rows:
-    Feature | <Medicine A name> | <Medicine B name>
-    Generic Name | ... | ...
-    Active Ingredients | ... | ...
-    Strength | ... | ...
-    Dosage Form | ... | ...
-    Manufacturer | ... | ...
-    MRP (approx) | ... | ...
-    Uses | ... | ...
-    Common Side Effects | ... | ...
-    Serious Warnings | ... | ...
-    Drug Interactions | ... | ...
-    Prescription Required | ... | ...
-  then a ## Key Differences section and a ## Which to Choose section as markdown text>"
-}"""
+  "med_a": {
+    "generic_name": "...",
+    "brand_name": "...",
+    "active_ingredients": "...",
+    "strength": "...",
+    "dosage_form": "...",
+    "manufacturer": "...",
+    "mrp": "...",
+    "uses": "...",
+    "common_dosage": "...",
+    "mechanism": "...",
+    "side_effects": "...",
+    "suitable_for": "...",
+    "drug_interactions": "...",
+    "prescription_required": "...",
+    "warnings": "..."
+  },
+  "med_b": {
+    "generic_name": "...",
+    "brand_name": "...",
+    "active_ingredients": "...",
+    "strength": "...",
+    "dosage_form": "...",
+    "manufacturer": "...",
+    "mrp": "...",
+    "uses": "...",
+    "common_dosage": "...",
+    "mechanism": "...",
+    "side_effects": "...",
+    "suitable_for": "...",
+    "drug_interactions": "...",
+    "prescription_required": "...",
+    "warnings": "..."
+  },
+  "key_differences": "...",
+  "substitutability": {
+    "verdict": "yes" | "partial" | "no",
+    "summary": "One clear sentence answering: can Product A be replaced by Product B? e.g. 'Yes, Dolo 650 can generally replace Calpol 500 as both contain Paracetamol, but the strength differs.'",
+    "reason": "Detailed explanation — same/different active ingredient, mechanism, strength differences, and any clinical conditions where substitution is or isn't safe.",
+    "conditions": "Specific conditions, dosage adjustments, or patient groups where substitution changes (e.g. not for children, requires dose adjustment, only for short-term use).",
+    "caution": "Safety warnings specific to switching between these two medicines. Always end with: Always consult your doctor or pharmacist before switching medicines."
+  },
+  "answer": ""
+}"""""
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -118,6 +150,10 @@ async def medicine_compare(request: CompareRequest):
     query = f"Compare {request.medicine_a} vs {request.medicine_b}"
     data = call_gemini(query, _COMPARE_PROMPT, temperature=0.1)
     return MedicineResponse(
-        answer=data.get("answer", "No comparison data generated."),
+        answer=data.get("answer", ""),
         mode="comparison",
+        med_a=data.get("med_a"),
+        med_b=data.get("med_b"),
+        key_differences=data.get("key_differences"),
+        substitutability=data.get("substitutability"),
     )
