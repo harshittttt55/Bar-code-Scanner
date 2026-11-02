@@ -10,7 +10,7 @@ import logging
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from gemini_client import call_gemini
+from gemini_medicine import call_gemini
 
 logger = logging.getLogger(__name__)
 

@@ -288,11 +288,15 @@ function App() {
                 <ErrorState message={error} onRetry={() => handleSearch()} />
               )}
 
-              {!loading && !error && product && product.found && (
+              {!loading && !error && product && (product.found || product.product_name || product.brand) && (
                 <ProductCard product={product} onReset={handleReset} />
               )}
 
-              {!loading && !error && (!product || !product.found) && searched && (
+              {!loading && !error && product && !product.found && !product.product_name && !product.brand && searched && (
+                <EmptyState barcode={barcode} />
+              )}
+
+              {!loading && !error && !product && searched && (
                 <EmptyState barcode={barcode} />
               )}
             </>
